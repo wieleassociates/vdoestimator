@@ -165,8 +165,13 @@ static void chunk_callback(struct udsRequest *request)
   if (!request->found && !dedupe_only)
     try_compression(query);
   else {
-    if(compression_only)
+    if (compression_only)
       try_compression(query);
+    // If the request has still not been found (see above) and we will not
+    // attempt compression, then perform the necessary accounting for use later
+    // on.
+    else if (!request->found)
+      bytes_used += query->data_size;
   }
   put_query(query);
   return;
@@ -420,10 +425,10 @@ int main(int argc, char *argv[])
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to open the index");
   }
-  
+
   pthread_mutex_init(&list_mutex, NULL);
   pthread_cond_init(&list_cond, NULL);
-  
+
   while (optind < argc) {
     char *path = argv[optind++];
     struct stat statbuf;
@@ -458,7 +463,7 @@ int main(int argc, char *argv[])
 
   time_t time_passed = cstats.currentTime - start_time;
   printf("Duration: %ldh:%ldm:%lds\n",
-         time_passed/3600, (time_passed%3600)/60, time_passed%60);
+         time_passed / 3600, (time_passed % 3600) / 60, time_passed % 60);
   printf("Sparse Index: %d\n", udsConfigurationGetSparse(conf));
   printf("Files Scanned: %lu\n", files_scanned);
   printf("Files Skipped: %lu\n", files_skipped);
@@ -468,12 +473,11 @@ int main(int argc, char *argv[])
   printf("Dedupe Request Posts Not Found: %lu\n", cstats.postsNotFound);
   printf("Dedupe Percentage: %2.3f%%\n",
          ((double)cstats.postsFound/(double)cstats.requests) * 100);
-  double saved
-     = (double)compressed_bytes / (double)total_bytes;
+  double saved = (double)compressed_bytes / (double)total_bytes;
   printf("Compressed Bytes: %lu\n", compressed_bytes);
   printf("Percent Saved Compression: %2.3f%%\n", saved * 100.0);
   printf("Total Bytes Used: %lu\n", bytes_used);
-  saved = ((double)total_bytes - (double)bytes_used) / (double)total_bytes; 
+  saved = ((double)total_bytes - (double)bytes_used) / (double)total_bytes;
   printf("Total Percent Saved: %2.3f%%\n", saved * 100.0);
   printf("Peak Concurrent Requests: %u\n", peak_requests);
 #if 0
@@ -490,4 +494,4 @@ int main(int argc, char *argv[])
   }
   pthread_mutex_destroy(&list_mutex);
   return 0;
- }
+}
